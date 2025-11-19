@@ -1,48 +1,64 @@
 """
-Database Schemas
+Database Schemas for Invoice & Payment Automation Tool
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
-
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Each Pydantic model corresponds to a MongoDB collection (lowercased class name).
 """
+from typing import List, Optional, Literal
+from pydantic import BaseModel, Field, EmailStr
+from datetime import date, datetime
 
-from pydantic import BaseModel, Field
-from typing import Optional
-
-# Example schemas (replace with your own):
-
+# Auth and org
 class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    email: EmailStr
+    name: str
+    password_hash: str
+    role: Literal["Admin", "Accountant", "Viewer"] = "Admin"
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+class Session(BaseModel):
+    user_id: str
+    token: str
+    expires_at: datetime
 
-# Add your own schemas here:
-# --------------------------------------------------
+# Business data
+class Client(BaseModel):
+    name: str
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class InvoiceItem(BaseModel):
+    description: str
+    quantity: float = Field(1, ge=0)
+    unit_price: float = Field(0, ge=0)
+    tax_rate: float = Field(0, ge=0, description="Tax rate as percentage e.g. 16 for 16%")
+
+class Invoice(BaseModel):
+    client_id: str
+    invoice_number: str
+    issue_date: date
+    due_date: date
+    currency: str = "KES"
+    items: List[InvoiceItem]
+    notes: Optional[str] = None
+    status: Literal["Pending", "Paid", "Overdue"] = "Pending"
+    subtotal: float
+    tax_total: float
+    total: float
+
+class Payment(BaseModel):
+    invoice_id: str
+    amount: float
+    method: Literal["M-Pesa", "Manual", "Bank"] = "M-Pesa"
+    reference: Optional[str] = None
+    status: Literal["Success", "Failed", "Pending"] = "Pending"
+    raw: Optional[dict] = None
+
+class MpesaConfig(BaseModel):
+    consumer_key: str
+    consumer_secret: str
+    shortcode: str = Field(..., description="Business shortcode")
+    passkey: str = Field(..., description="Lipa na M-PESA Online Passkey")
+    callback_url: str
+    environment: Literal["sandbox", "production"] = "sandbox"
